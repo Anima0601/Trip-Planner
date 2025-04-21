@@ -6,6 +6,7 @@ import { createBrowserRouter } from 'react-router-dom'
 import { RouterProvider } from 'react-router'
 import Createtrip from './trip-planner'
 import Header from './components/custom/Header'
+import TripResult from './trip-result' // Import the TripResult component
 
 const router=createBrowserRouter([
   {
@@ -15,6 +16,10 @@ const router=createBrowserRouter([
   {
     path:'/create-trip',
     element:<Createtrip/>
+  },
+  {
+    path:'/trip-result',
+    element:<TripResult/>
   }
 ])
 
