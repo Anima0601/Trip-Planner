@@ -53,7 +53,7 @@ export const selectBudgetList=[
 
 export const AI_PROMPT = `Generate a JSON travel plan for {location} for {days} days for a {group} with a {budget} budget.
 
-Include a 'hotelOptions' array with the following details for each option: hotelName, hotelAddress, price (approximate range), hotelImageURL, geocoordinates (latitude and longitude), rating (e.g., '4.2/5'), and a brief description.
+Include a 'hotelOptions' array with **three suitable options** , for each option: hotelName, hotelAddress, price (approximate range), hotelImageURL, geocoordinates (latitude and longitude), rating (e.g., '4.2/5'), and a brief description.
 
 Include an 'itinerary' array where each element represents a day. Each day object should have a 'day' number and a 'dailyPlan' array. Each element in 'dailyPlan' should represent a place to visit and include:
 - placeName

@@ -1,36 +1,56 @@
+import axios from "axios";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-const apiKey = import.meta.env.VITE_GOOGLE_GEMINI_AI_API_KEY; // Make sure this is in your .env file
-
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro-preview-03-25" });
-
-const generationConfig = {
-  temperature: 1,
-  topP: 0.95,
-  topK: 64,
-  maxOutputTokens: 65536,
-  responseMimeType: "application/json",
-};
-
-async function generateTripPlan(prompt) {
+export const generateTripPlan = async (prompt) => {
   try {
-    const result = await model.generateContent({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig,
-    });
-    const response = result.response;
-    if (response.candidates && response.candidates.length > 0) {
-      return response.candidates[0].content.parts[0].text;
+    const response = await axios.post(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.7, 
+        },
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    const rawResponseText = response.data.candidates[0].content.parts[0].text;
+    const jsonMatch = rawResponseText.match(/```json\n([\s\S]*?)\n```/);
+    let jsonString;
+
+    if (jsonMatch && jsonMatch[1]) {
+      jsonString = jsonMatch[1]; 
     } else {
-      console.error("No response from Gemini:", response);
-      return null;
+      jsonString = rawResponseText; 
     }
+    
+    // Trim any remaining whitespace
+    jsonString = jsonString.trim();
+
+    const parsedData = JSON.parse(jsonString);
+    
+    return parsedData;
   } catch (error) {
-    console.error("Error generating content:", error);
+    console.error("Gemini API error:", error.response?.data || error.message);
+ 
+    if (error instanceof SyntaxError && jsonString) {
+      console.error("Failed to parse JSON. String attempting to parse:", jsonString); 
+    } else {
+       console.error("Failed to parse JSON. Raw response text was empty or not captured properly.");
+    }
     return null;
   }
-}
-
-export { generateTripPlan };
+};
