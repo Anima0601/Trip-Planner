@@ -1,65 +1,94 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-require('dotenv').config(); // Make sure this is at the very top to load environment variables
+const jwt = require('jsonwebtoken');
+
+require('dotenv').config();
 
 const app = express();
-const port = 3001; // Ensure this matches the port your frontend fetches from
+const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json()); // To parse JSON request bodies
+app.use(cors({
+  origin: 'http://localhost:5173',
+  methods: ['GET', 'POST'],
+  credentials: true,
+}));
 
-// This endpoint will now accept a 'searchQuery' in its request body
-app.post('/api/get-place-image-data', async (req, res) => {
-    const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
-    const { searchQuery } = req.body; // Expecting 'searchQuery' from the frontend
+app.use(express.json());
 
-    // Basic validation for API key
-    if (!UNSPLASH_ACCESS_KEY) {
-        console.error('Error: UNSPLASH_ACCESS_KEY is not set!');
-        return res.status(500).json({ error: 'Server configuration error: API key missing.' });
-    }
+const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key';
 
-    // Fallback or error if no search query is provided by the client
-    if (!searchQuery) {
-        console.warn('No searchQuery provided for /api/get-place-image-data. Returning generic placeholder.');
-        return res.json({ imageUrl: `https://via.placeholder.com/400?text=Image+Query+Missing` });
-    }
+app.post('/api/auth/google', async (req, res) => {
+  const { accessToken } = req.body;
 
-    try {
-        // Make the API call to Unsplash using the provided searchQuery
-        const response = await axios.get('https://api.unsplash.com/search/photos', {
-            params: {
-                query: searchQuery, // Use the query from the frontend
-                orientation: 'squarish', // You can change this (e.g., 'landscape', 'portrait')
-                per_page: 30 // Number of results to fetch, higher count increases randomness
-            },
-            headers: {
-                Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` // Use your Unsplash Access Key
-            }
-        });
+  if (!accessToken) {
+    return res.status(400).json({ message: 'No access token provided.' });
+  }
 
-        const photos = response.data.results;
+  try {
+    const userInfoResponse = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
 
-        if (photos && photos.length > 0) {
-            // Pick a random image from the results
-            const randomIndex = Math.floor(Math.random() * photos.length);
-            const imageUrl = photos[randomIndex].urls.regular; // 'regular' is a good size
+    const payload = userInfoResponse.data;
 
-            res.json({ imageUrl });
-        } else {
-            // Fallback if Unsplash finds no images for the given query
-            console.warn(`No images found on Unsplash for query: "${searchQuery}"`);
-            res.json({ imageUrl: `https://via.placeholder.com/400?text=No+Image+for+${encodeURIComponent(searchQuery)}` });
-        }
+    const userId = payload['sub'];
+    const userEmail = payload['email'];
+    const userName = payload['name'];
+    const userPicture = payload['picture'];
 
-    } catch (error) {
-        console.error(`Error fetching image for "${searchQuery}" from Unsplash API:`, error.message);
-        // Provide a generic fallback in case of any network or API error
-        res.status(500).json({ imageUrl: `https://via.placeholder.com/400?text=Error+Loading+Image` });
-    }
+    const jwtToken = jwt.sign(
+      { userId: userId, email: userEmail, name: userName },
+      JWT_SECRET,
+      { expiresIn: '1h' }
+    );
+
+    res.status(200).json({
+      message: 'Google authentication successful',
+      token: jwtToken,
+      user: { userId, userEmail, userName, userPicture }
+    });
+
+  } catch (error) {
+    console.error('Error fetching Google user info or verifying access token:', error.response?.data || error.message);
+    res.status(401).json({ message: `Authentication failed: ${error.response?.data?.error_description || error.message}` });
+  }
 });
 
-app.listen(port, () => {
-  console.log(`Backend proxy listening on port ${port}`);
+app.post('/api/get-place-image-data', async (req, res) => {
+  const { searchQuery } = req.body;
+  const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
+
+  if (!UNSPLASH_ACCESS_KEY) {
+    return res.status(500).json({ message: "Unsplash Access Key not configured." });
+  }
+
+  if (!searchQuery) {
+    return res.status(400).json({ message: "Search query is required." });
+  }
+
+  try {
+    const unsplashResponse = await axios.get('https://api.unsplash.com/search/photos', {
+      headers: {
+        Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}`,
+      },
+      params: {
+        query: searchQuery,
+        per_page: 1,
+      },
+    });
+
+    if (unsplashResponse.data.results && unsplashResponse.data.results.length > 0) {
+      res.json({ imageUrl: unsplashResponse.data.results[0].urls.regular });
+    } else {
+      res.json({ imageUrl: 'N/A' });
+    }
+  } catch (error) {
+    console.error("Error fetching image from Unsplash:", error.response ? error.response.data : error.message);
+    res.status(500).json({ message: "Failed to fetch image from Unsplash." });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

@@ -9,7 +9,7 @@ function Hero() {
       <h2 className='font-extrabold text-[55px] text-center mt-16'>
         <span className='text-[#b91c1c]'>Discover your Next Travel Destination:</span> AI enhanced Personalized Itineraries </h2>
         <p className='font-medium text-center text-[20px] text-[#57534e]'>Plan smarter, travel better—your AI-powered trip companion.</p>
-        <Link to={'/create-trip'}>
+        <Link to={'/login'}>
         <Button>Get Started</Button>
         </Link>
         <img 
