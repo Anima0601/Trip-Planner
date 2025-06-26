@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AI_PROMPT, selectBudgetList, selectTravelList } from "@/constants/options";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
+import { auth, db } from '../firebaseConfig'; 
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { generateTripPlan } from "../../GeminiChat";
 import axios from "axios";
 
@@ -19,20 +21,116 @@ function Createtrip() {
     group: "",
   });
 
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const containerRef = useRef(null);
+  const skipNextFocus = useRef(false);
+
+  const LOCATIONIQ_ACCESS_TOKEN = import.meta.env.VITE_LOCATIONIQ_ACCESS_TOKEN;
+  const debounceTimeoutRef = useRef(null);
+
   const handleInputChange = (name, value) => {
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+
+    if (name === "location" && value.length > 2) {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      debounceTimeoutRef.current = setTimeout(() => {
+        fetchLocationIQSuggestions(value);
+      }, 300);
+    } else if (name === "location" && value.length <= 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const fetchLocationIQSuggestions = async (query) => {
+    if (!LOCATIONIQ_ACCESS_TOKEN) {
+      console.error("LocationIQ Access Token is not set!");
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    try {
+      const response = await fetch(
+        `https://us1.locationiq.com/v1/search.php?key=${LOCATIONIQ_ACCESS_TOKEN}&q=${encodeURIComponent(query)}&format=json&dedupe=1&limit=5`
+      );
+      const data = await response.json();
+
+      if (data && data.length > 0) {
+        setSuggestions(data);
+        setShowSuggestions(true);
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    } catch (error) {
+      console.error("Error fetching LocationIQ suggestions:", error);
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSuggestionClick = (placeName) => {
+    handleInputChange("location", placeName);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    // Set the flag to true right after selecting a suggestion
+    skipNextFocus.current = true;
   };
 
   useEffect(() => {
-    console.log("formData", formData);
-  }, [formData]);
+    const userToken = localStorage.getItem('userToken');
+    if (!userToken) {
+      setErrorMessage("Please sign in to create a trip.");
+      navigate('/login');
+    }
 
-  const onGenerateTrip = async () => { // Corrected: Removed the duplicate 'onGenerateTrip = async () => {' here
+    const handleClickOutside = (event) => {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
+        setShowSuggestions(false);
+        setSuggestions([]);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+
+  }, [navigate]);
+
+  // NEW: Custom onFocus handler for the input
+  const handleInputFocus = () => {
+    // If the flag is set, it means we just clicked a suggestion
+    // So, we prevent showing the suggestions immediately and reset the flag.
+    if (skipNextFocus.current) {
+      skipNextFocus.current = false;
+      return;
+    }
+    // Otherwise, show suggestions as normal (if there's input)
+    setShowSuggestions(true);
+  };
+
+
+  const onGenerateTrip = async () => {
     setErrorMessage("");
     setLoading(true);
+
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+        setErrorMessage("Please sign in to save your trip history.");
+        setLoading(false);
+        navigate('/login'); 
+        return;
+    }
+    const userUid = currentUser.uid
 
     const days = parseInt(formData.days);
 
@@ -42,7 +140,7 @@ function Createtrip() {
       return;
     }
 
-    if (!formData.budget || !formData.location || !formData.group) {
+    if (!formData.location || !formData.budget || !formData.group) {
       setErrorMessage("Please enter all the details.");
       setLoading(false);
       return;
@@ -60,14 +158,10 @@ function Createtrip() {
       .replace('{group}', formData.group)
       .replace('{budget}', formData.budget);
 
-    console.log(prompt);
-
     try {
       const geminiResponse = await generateTripPlan(prompt);
 
       if (geminiResponse) {
-        console.log("Gemini Response (initial):", geminiResponse);
-
         const updatedHotelOptions = [];
         if (geminiResponse.hotelOptions && Array.isArray(geminiResponse.hotelOptions)) {
           for (const hotel of geminiResponse.hotelOptions) {
@@ -88,7 +182,7 @@ function Createtrip() {
 
         const updatedItinerary = [];
         if (geminiResponse.itinerary && Array.isArray(geminiResponse.itinerary)) {
-          for (const dayPlan of geminiResponse.itinerary) {
+          for (const dayPlan of geminiResponse.itinerary) { 
             const updatedDailyPlan = [];
             if (dayPlan.dailyPlan && Array.isArray(dayPlan.dailyPlan)) {
               for (const activity of dayPlan.dailyPlan) {
@@ -121,15 +215,32 @@ function Createtrip() {
           }
         };
 
-        console.log("Final Trip Data with images:", finalTripData);
+        try {
+                // Create a reference to the user's searchHistory sub-collection
+                const searchHistoryRef = collection(db, 'users', userUid, 'searchHistory');
+                await addDoc(searchHistoryRef, {
+                    searchQuery: formData.location,
+                    days: formData.days,
+                    budget: formData.budget,
+                    group: formData.group,
+                    generatedAt: serverTimestamp(), 
+                    tripData: finalTripData 
+                });
+                console.log("Trip history saved to Firestore for user:", userUid);
+            } catch (firestoreError) {
+                console.error("Error saving trip history to Firestore:", firestoreError);
+                setErrorMessage("Trip generated, but failed to save history. Please try again.");
+               
+            }
+
         navigate('/trip-result', { state: { tripData: finalTripData } });
 
       } else {
         setErrorMessage("Failed to get a valid response from the AI. Please try again.");
       }
     } catch (error) {
-      setErrorMessage("An unexpected error occurred while generating the trip plan or fetching images. Please check your network connection and try again.");
       console.error("Error during trip generation/image fetch:", error);
+      setErrorMessage("An unexpected error occurred while generating the trip plan or fetching images. Please check your network connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -145,20 +256,34 @@ function Createtrip() {
       </p>
 
       <div className="mx-10 my-10 gap-6">
-        {/* Destination Input */}
         <div>
           <h2 className="font-bold font-serif">
             What is the destination of your choice?
           </h2>
-          <Input
-            type="text"
-            placeholder="Enter destination manually..."
-            value={formData.location}
-            onChange={(e) => handleInputChange("location", e.target.value)}
-          />
+          <div className="relative" ref={containerRef}>
+            <Input
+              type="text"
+              placeholder="Enter destination (e.g., Paris, France)"
+              value={formData.location}
+              onChange={(e) => handleInputChange("location", e.target.value)}
+              onFocus={handleInputFocus} 
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 shadow-lg max-h-60 overflow-y-auto">
+                {suggestions.map((suggestion) => (
+                  <li
+                    key={suggestion.place_id}
+                    className="p-2 cursor-pointer hover:bg-gray-100"
+                    onMouseDown={() => handleSuggestionClick(suggestion.display_name)}
+                  >
+                    {suggestion.display_name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
-        {/* Days Input */}
         <div className="mt-6">
           <h2 className="font-bold font-serif">Enter no. of days for the trip:</h2>
           <Input
@@ -169,7 +294,6 @@ function Createtrip() {
           />
         </div>
 
-        {/* Budget Options */}
         <div className="mt-6">
           <h2 className="font-bold font-serif">What is the Budget of the trip?</h2>
           <div className="grid grid-cols-3 gap-10 mt-5">
@@ -188,7 +312,6 @@ function Createtrip() {
           </div>
         </div>
 
-        {/* Travel Group Options */}
         <div className="mt-6">
           <h2 className="font-bold font-serif">
             Who do you plan on travelling with on your next trip?
@@ -209,7 +332,6 @@ function Createtrip() {
           </div>
         </div>
 
-        {/* Show Alert Box if any validation fails or API error occurs */}
         {errorMessage && (
           <Alert variant="destructive" className="mt-6">
             <AlertCircle className="h-4 w-4" />
@@ -218,7 +340,6 @@ function Createtrip() {
           </Alert>
         )}
 
-        {/* Generate Button with Loading Indicator */}
         <Button className="mt-10" onClick={onGenerateTrip} disabled={loading}>
           {loading ? (
             <>
