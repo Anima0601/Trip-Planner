@@ -1,16 +1,15 @@
-// src/components/custom/Login.jsx
 
 import React, { useEffect, useState } from 'react';
 import { Button } from '../ui/button';
 import { useAuth } from '../../context/AuthContext';
-import { useNavigate, useLocation } from 'react-router-dom'; // ADDED useLocation
+import { useNavigate, useLocation } from 'react-router-dom'; 
 import { signInWithGoogle } from '../../firebaseConfig';
 import { Loader2 } from 'lucide-react';
 
 function Login() {
   const { currentUser, loading } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); // NEW: Get current location for path check
+  const location = useLocation(); 
   const [loginError, setLoginError] = useState(null);
   const [signInLoading, setSignInLoading] = useState(false);
 
@@ -23,7 +22,7 @@ function Login() {
 
       console.log("Login component: User logged in, but not on /login path. Current path:", location.pathname);
     }
-  }, [currentUser, loading, navigate, location.pathname]); // ADDED location.pathname to dependencies
+  }, [currentUser, loading, navigate, location.pathname]); 
 
   const handleGoogleSignIn = async () => {
     setSignInLoading(true);

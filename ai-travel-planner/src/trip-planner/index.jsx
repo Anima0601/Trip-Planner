@@ -164,7 +164,7 @@ function Createtrip() {
         if (geminiResponse.hotelOptions && Array.isArray(geminiResponse.hotelOptions)) {
           for (const hotel of geminiResponse.hotelOptions) {
             try {
-              const imageUrlResponse = await axios.post('http://localhost:3001/api/get-place-image-data', {
+              const imageUrlResponse = await axios.post('https://api-g4txbaubmq-uc.a.run.app/api/get-place-image-data', {
                 searchQuery: 'hotel interior, hotel room, hotel lobby, hotel exterior, hotel building, hotel suite, resort'
               });
               updatedHotelOptions.push({
@@ -185,7 +185,7 @@ function Createtrip() {
             if (dayPlan.dailyPlan && Array.isArray(dayPlan.dailyPlan)) {
               for (const activity of dayPlan.dailyPlan) {
                 try {
-                  const imageUrlResponse = await axios.post('http://localhost:3001/api/get-place-image-data', {
+                  const imageUrlResponse =await axios.post('https://api-g4txbaubmq-uc.a.run.app/api/get-place-image-data', {
                     searchQuery: `${activity.placeName} ${formData.location} landmark iconic view tourist attraction`
                   });
                   updatedDailyPlan.push({
@@ -214,7 +214,7 @@ function Createtrip() {
         };
 
         try {
-            // Create a reference to the user's searchHistory sub-collection
+         
             const searchHistoryRef = collection(db, 'users', userUid, 'searchHistory');
             await addDoc(searchHistoryRef, {
               searchQuery: formData.location,
