@@ -1,57 +1,43 @@
+// src/components/custom/Header.jsx
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Button } from '../ui/button';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { toast } from 'sonner'; 
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { signOutUser } from '../../firebaseConfig';
 
-const Header = () => {
+function Header() {
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation(); 
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  useEffect(() => {
-    const token = localStorage.getItem('userToken');
-    setIsLoggedIn(!!token); 
-  }, [location]);
-
-  const handleSignInClick = () => {
-    navigate('/login');
-  };
-
-  const handleSignOut = () => {
-    localStorage.removeItem('userToken'); 
-    setIsLoggedIn(false); 
-    toast.info("You have been signed out.");
-    navigate('/'); 
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+      navigate('/login');
+    } catch (error) {
+      console.error("Error signing out:", error);
+      alert("Failed to sign out. Please try again.");
+    }
   };
 
   return (
-    <header className="fixed top-0 left-0 w-full bg-white bg-opacity-90 backdrop-blur-sm shadow-md p-4 flex justify-between items-center z-50">
-      <div className="logo">
-        <Link to="/" className="text-2xl font-bold text-red-700">Project Planner</Link> 
+    <header className="flex items-center justify-between p-4 bg-white shadow-md">
+      <div className="flex items-center gap-2">
+        <span className="text-xl font-bold text-[#b91c1c]">Travel Planner</span>
       </div>
       <nav>
-        <ul className="flex space-x-6 items-center">
-          <li><Link to="/" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">Home</Link></li>
-          {isLoggedIn ? (
-            <>
-              <li><Link to="/create-trip" className="text-gray-700 hover:text-blue-600 transition-colors font-medium">Create Trip</Link></li>
-              <li>
-                <Button onClick={handleSignOut}>Sign Out</Button> 
-              </li>
-            </>
-          ) : (
-            <li>
-           
-              {location.pathname !== '/login' && (
-                <Button onClick={handleSignInClick}>Sign In</Button>
-              )}
-            </li>
-          )}
-        </ul>
+        {currentUser ? (
+          <Button onClick={handleSignOut} className="bg-gray-200 text-gray-800 hover:bg-gray-300">
+            Sign Out
+          </Button>
+        ) : (
+          <Button onClick={() => navigate('/login')} className="bg-[#b91c1c] hover:bg-[#991b1b] text-white">
+            Get Started
+          </Button>
+        )}
       </nav>
     </header>
   );
-};
+}
 
 export default Header;

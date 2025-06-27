@@ -17,7 +17,7 @@ export const generateTripPlan = async (prompt) => {
           },
         ],
         generationConfig: {
-          temperature: 0.7, 
+          temperature: 0.7,
         },
       },
       {
@@ -28,28 +28,37 @@ export const generateTripPlan = async (prompt) => {
     );
 
     const rawResponseText = response.data.candidates[0].content.parts[0].text;
+    console.log("--- Raw Gemini Response Text ---");
+    console.log(rawResponseText); 
+
     const jsonMatch = rawResponseText.match(/```json\n([\s\S]*?)\n```/);
     let jsonString;
 
     if (jsonMatch && jsonMatch[1]) {
-      jsonString = jsonMatch[1]; 
+      jsonString = jsonMatch[1];
+      console.log("--- Extracted JSON (from ```json block) ---");
     } else {
-      jsonString = rawResponseText; 
+      jsonString = rawResponseText;
+      console.log("--- Extracted JSON (full raw text) ---");
     }
-    
-    // Trim any remaining whitespace
+
     jsonString = jsonString.trim();
+    console.log(jsonString); 
 
     const parsedData = JSON.parse(jsonString);
-    
+    console.log("--- Successfully Parsed Data ---");
+    console.log(parsedData); 
+
     return parsedData;
   } catch (error) {
     console.error("Gemini API error:", error.response?.data || error.message);
- 
+
     if (error instanceof SyntaxError && jsonString) {
-      console.error("Failed to parse JSON. String attempting to parse:", jsonString); 
+      console.error("Failed to parse JSON. String attempting to parse:", jsonString);
+    } else if (rawResponseText) { 
+        console.error("Failed to parse JSON. Raw response text was:", rawResponseText);
     } else {
-       console.error("Failed to parse JSON. Raw response text was empty or not captured properly.");
+        console.error("Failed to parse JSON. Raw response text was empty or not captured properly.");
     }
     return null;
   }

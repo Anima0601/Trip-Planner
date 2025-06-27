@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { auth, db } from './firebaseConfig';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 
 function TripResult() {
   const location = useLocation();
@@ -15,6 +15,7 @@ function TripResult() {
   useEffect(() => {
     if (location.state && location.state.tripData) {
       setTripData(location.state.tripData);
+      console.log("Trip Data received in TripResult:", location.state.tripData);
     } else {
       setErrorMessage("No trip data found. Please generate a trip first.");
     }
@@ -66,7 +67,7 @@ function TripResult() {
               <li key={search.id} className="border p-4 rounded-lg shadow-sm bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer">
                 <p className="font-semibold text-lg text-gray-800">{search.searchQuery}</p>
                 <p className="text-gray-600">
-                  <span className="font-medium">Days:</span> {search.days}, 
+                  <span className="font-medium">Days:</span> {search.days},
                   <span className="font-medium ml-2">Group:</span> {search.group}
                 </p>
                 <p className="text-gray-500 text-sm mt-1">
@@ -96,16 +97,18 @@ function TripResult() {
                 {tripData.hotelOptions.map((hotel, index) => (
                   <div key={index} className="border p-4 rounded-lg shadow-sm bg-gray-50 flex flex-col">
                     {hotel.hotelImageURL && (
-                      <img 
-                        src={hotel.hotelImageURL} 
-                        alt={hotel.hotelName} 
-                        className="w-full h-48 object-cover rounded-md mb-3" 
-                        onError={(e) => { e.target.onerror = null; e.target.src="/placeholder-hotel.jpg" }}
+                      <img
+                        src={hotel.hotelImageURL}
+                        alt={hotel.hotelName}
+                        className="w-full h-48 object-cover rounded-md mb-3"
+                        onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder-hotel.jpg" }}
                       />
                     )}
                     <h3 className="font-bold text-xl mb-1 text-gray-900">{hotel.hotelName}</h3>
                     <p className="text-gray-700">Rating: {hotel.rating} / 5</p>
-                    <p className="text-gray-700">Price Range: {hotel.priceRange}</p>
+                    <p className="text-gray-700">Price Range:  {typeof hotel.price === 'object' && hotel.price !== null
+                      ? `₹${hotel.price.min} - ₹${hotel.price.max}`
+                      : hotel.price}</p>
                     <p className="text-sm text-gray-600 mt-2 flex-grow">{hotel.description}</p>
                   </div>
                 ))}
@@ -119,23 +122,27 @@ function TripResult() {
               <div className="space-y-8">
                 {tripData.itinerary.map((day, dayIndex) => (
                   <div key={dayIndex} className="bg-gray-50 p-6 rounded-lg shadow-md">
-                    <h3 className="font-bold text-xl mb-4 text-gray-900">Day {dayIndex + 1}: {day.dayTitle}</h3>
+                    <h3 className="font-bold text-xl mb-4 text-gray-900">Day {day.day}: {day.dayTitle}</h3>
                     {day.dailyPlan && day.dailyPlan.length > 0 ? (
                       <ul className="space-y-4">
                         {day.dailyPlan.map((activity, activityIndex) => (
                           <li key={activityIndex} className="flex items-start gap-4 p-3 border rounded-md bg-white">
                             {activity.placeImageURL && (
-                              <img 
-                                src={activity.placeImageURL} 
-                                alt={activity.placeName} 
-                                className="w-24 h-24 object-cover rounded-md flex-shrink-0" 
-                                onError={(e) => { e.target.onerror = null; e.target.src="/placeholder-activity.jpg" }}
+                              <img
+                                src={activity.placeImageURL}
+                                alt={activity.placeName}
+                                className="w-24 h-24 object-cover rounded-md flex-shrink-0"
+                                onError={(e) => { e.target.onerror = null; e.target.src = "/placeholder-activity.jpg" }}
                               />
                             )}
                             <div>
                               <p className="font-semibold text-lg text-gray-900">{activity.placeName}</p>
-                              <p className="text-gray-700 text-sm">{activity.description}</p>
-                              <p className="text-gray-500 text-xs mt-1">Time: {activity.time}</p>
+                              <p className="text-gray-700 text-sm">{activity.placeDetails}</p> 
+                              <p className="text-gray-500 text-xs mt-1">Time to Spend: {activity.timeToSpend}</p>
+                              <p className="text-gray-500 text-xs">Travel from Previous: {activity.travelTimeFromPrevious}</p>
+                              <p className="text-gray-500 text-xs">Ticket Price: {activity.ticketPricing}</p>
+                              <p className="text-gray-500 text-xs">Rating: {activity.rating}</p>
+                              <p className="text-gray-500 text-xs">Best Time to Visit: {activity.bestTimeToVisit}</p>
                             </div>
                           </li>
                         ))}

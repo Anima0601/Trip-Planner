@@ -1,6 +1,7 @@
+
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, Timestamp } from 'firebase/firestore'; // Added Timestamp here
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -44,5 +45,6 @@ export {
   db,
   signInWithGoogle,
   signOutUser,
-  onAuthStateChanged
+  onAuthStateChanged,
+  Timestamp // Export Timestamp
 };

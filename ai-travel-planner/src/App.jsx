@@ -1,11 +1,21 @@
-import Hero from "./components/custom/Hero"
-function App() {
 
+import React from 'react';
+import { Outlet } from 'react-router-dom'; 
+import Header from './components/custom/Header'; 
+
+function MainAppLayout() {
   return (
-    <>
-    <Hero/>
-    </>
-  )
+    <div>
+      <Header />
+      <main>
+        <Outlet /> 
+      </main>
+    </div>
+  );
 }
 
-export default App
+function App() {
+  return <MainAppLayout />;
+}
+
+export default App;

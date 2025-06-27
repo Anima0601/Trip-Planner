@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from "react";
 import { Input } from "../components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -6,14 +7,17 @@ import { AI_PROMPT, selectBudgetList, selectTravelList } from "@/constants/optio
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../firebaseConfig'; 
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'; 
 import { generateTripPlan } from "../../GeminiChat";
 import axios from "axios";
+import { useAuth } from '../context/AuthContext'; 
 
 function Createtrip() {
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { currentUser, loading: authLoading } = useAuth(); 
+  
   const [formData, setFormData] = useState({
     location: "",
     days: "",
@@ -80,15 +84,15 @@ function Createtrip() {
     handleInputChange("location", placeName);
     setSuggestions([]);
     setShowSuggestions(false);
-    // Set the flag to true right after selecting a suggestion
     skipNextFocus.current = true;
   };
 
   useEffect(() => {
-    const userToken = localStorage.getItem('userToken');
-    if (!userToken) {
-      setErrorMessage("Please sign in to create a trip.");
-      navigate('/login');
+    if (!authLoading) {
+      if (!currentUser) { 
+        setErrorMessage("Please sign in to create a trip.");
+        navigate('/login');
+      }
     }
 
     const handleClickOutside = (event) => {
@@ -104,26 +108,20 @@ function Createtrip() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
 
-  }, [navigate]);
-
-  // NEW: Custom onFocus handler for the input
+  }, [navigate, currentUser, authLoading]); 
   const handleInputFocus = () => {
-    // If the flag is set, it means we just clicked a suggestion
-    // So, we prevent showing the suggestions immediately and reset the flag.
     if (skipNextFocus.current) {
       skipNextFocus.current = false;
       return;
     }
-    // Otherwise, show suggestions as normal (if there's input)
     setShowSuggestions(true);
   };
-
 
   const onGenerateTrip = async () => {
     setErrorMessage("");
     setLoading(true);
 
-    const currentUser = auth.currentUser;
+    const currentUser = auth.currentUser; // This check is fine as a fallback
     if (!currentUser) {
         setErrorMessage("Please sign in to save your trip history.");
         setLoading(false);
@@ -216,22 +214,22 @@ function Createtrip() {
         };
 
         try {
-                // Create a reference to the user's searchHistory sub-collection
-                const searchHistoryRef = collection(db, 'users', userUid, 'searchHistory');
-                await addDoc(searchHistoryRef, {
-                    searchQuery: formData.location,
-                    days: formData.days,
-                    budget: formData.budget,
-                    group: formData.group,
-                    generatedAt: serverTimestamp(), 
-                    tripData: finalTripData 
-                });
-                console.log("Trip history saved to Firestore for user:", userUid);
-            } catch (firestoreError) {
-                console.error("Error saving trip history to Firestore:", firestoreError);
-                setErrorMessage("Trip generated, but failed to save history. Please try again.");
-               
-            }
+            // Create a reference to the user's searchHistory sub-collection
+            const searchHistoryRef = collection(db, 'users', userUid, 'searchHistory');
+            await addDoc(searchHistoryRef, {
+              searchQuery: formData.location,
+              days: formData.days,
+              budget: formData.budget,
+              group: formData.group,
+              generatedAt: serverTimestamp(), 
+              tripData: finalTripData 
+            });
+            console.log("Trip history saved to Firestore for user:", userUid);
+        } catch (firestoreError) {
+            console.error("Error saving trip history to Firestore:", firestoreError);
+            setErrorMessage("Trip generated, but failed to save history. Please try again.");
+            
+        }
 
         navigate('/trip-result', { state: { tripData: finalTripData } });
 
